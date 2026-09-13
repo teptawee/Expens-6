@@ -1,6 +1,6 @@
 /* ============================================
-   LocalStorage Data Layer
-   + Optional Google Sheets sync
+   Storage — Hybrid LocalStorage + Google Sheets
+   V3.1.0
 ============================================ */
 const Storage = (() => {
 
@@ -10,53 +10,238 @@ const Storage = (() => {
     expenses: []
   };
 
-  /* ---------- LocalStorage ---------- */
-  function load() {
+  let lastSyncTime = 0;
+  let isSyncing = false;
+
+  /* ============================================
+     LocalStorage (cache layer)
+  ============================================ */
+  function loadFromLocal() {
     try {
       const raw = localStorage.getItem(CONFIG.STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        state = {
-          categories: parsed.categories || [],
-          paymentTypes: parsed.paymentTypes || [],
-          expenses: parsed.expenses || []
-        };
-        return state;
-      }
-    } catch (e) {
-      console.warn('Load failed:', e);
-    }
-    seed();
-    return state;
-  }
+      if (!raw) return false;
 
-  function save() {
-    try {
-      localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(state));
+      const parsed = JSON.parse(raw);
+      state = {
+        categories:   Array.isArray(parsed.categories)   ? parsed.categories   : [],
+        paymentTypes: Array.isArray(parsed.paymentTypes) ? parsed.paymentTypes : [],
+        expenses:     Array.isArray(parsed.expenses)     ? parsed.expenses     : []
+      };
+      lastSyncTime = parsed._syncedAt || 0;
       return true;
     } catch (e) {
-      console.error('Save failed:', e);
+      console.warn('Load local failed:', e);
+      return false;
+    }
+  }
+
+  function saveToLocal() {
+    try {
+      localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify({
+        categories:   state.categories,
+        paymentTypes: state.paymentTypes,
+        expenses:     state.expenses,
+        _syncedAt:    lastSyncTime,
+        _version:     CONFIG.VERSION
+      }));
+      return true;
+    } catch (e) {
+      console.error('Save local failed:', e);
       return false;
     }
   }
 
   function seed() {
-    state.categories   = CONFIG.SEED.categories.map(c => ({...c}));
-    state.paymentTypes = CONFIG.SEED.paymentTypes.map(p => ({...p}));
+    state.categories   = CONFIG.SEED.categories.map(c => ({ ...c }));
+    state.paymentTypes = CONFIG.SEED.paymentTypes.map(p => ({ ...p }));
     state.expenses     = [];
-    save();
+    saveToLocal();
   }
 
-  /* ---------- Utilities ---------- */
+  /* ============================================
+     JSONP fetch (เลี่ยง CORS)
+  ============================================ */
+  function jsonpFetch(params) {
+    return new Promise((resolve, reject) => {
+      if (!CONFIG.SHEETS_API_URL) {
+        reject(new Error('ยังไม่ได้ตั้งค่า SHEETS_API_URL ใน config.js'));
+        return;
+      }
+
+      const callbackName = 'jsonp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+
+      // สร้าง URL
+      const query = Object.keys(params)
+        .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
+        .join('&');
+
+      const url = CONFIG.SHEETS_API_URL
+        + (CONFIG.SHEETS_API_URL.includes('?') ? '&' : '?')
+        + query
+        + '&callback=' + callbackName;
+
+      const script = document.createElement('script');
+      script.src = url;
+      script.async = true;
+
+      let done = false;
+
+      const cleanup = () => {
+        if (done) return;
+        done = true;
+        try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+      };
+
+      window[callbackName] = (data) => {
+        cleanup();
+        resolve(data);
+      };
+
+      script.onerror = () => {
+        cleanup();
+        reject(new Error('เชื่อมต่อ Sheets API ไม่สำเร็จ — ตรวจสอบ URL หรือสิทธิ์การเข้าถึง'));
+      };
+
+      document.head.appendChild(script);
+
+      // Timeout 20s
+      setTimeout(() => {
+        if (!done) {
+          cleanup();
+          reject(new Error('หมดเวลาเชื่อมต่อ Sheets (เกิน 20 วินาที)'));
+        }
+      }, 20000);
+    });
+  }
+
+  /* ============================================
+     Sync — ดึงข้อมูลจาก Sheets
+  ============================================ */
+  async function syncFromSheets() {
+    if (!CONFIG.SHEETS_API_URL) {
+      throw new Error('ยังไม่ได้ตั้งค่า SHEETS_API_URL');
+    }
+
+    if (isSyncing) {
+      // รอให้รอบก่อนเสร็จ
+      return new Promise((resolve) => {
+        const check = setInterval(() => {
+          if (!isSyncing) {
+            clearInterval(check);
+            resolve(state);
+          }
+        }, 100);
+      });
+    }
+
+    isSyncing = true;
+
+    try {
+      const res = await jsonpFetch({ action: 'getAll' });
+
+      if (!res || res.status !== 'success') {
+        throw new Error((res && res.message) || 'API ตอบกลับผิดพลาด');
+      }
+
+      const data = res.data || {};
+
+      state = {
+        categories:   Array.isArray(data.categories)   ? data.categories   : [],
+        paymentTypes: Array.isArray(data.paymentTypes) ? data.paymentTypes : [],
+        expenses:     Array.isArray(data.expenses)     ? data.expenses     : []
+      };
+
+      lastSyncTime = Date.now();
+      saveToLocal();
+
+      console.log('✅ Sync success:', {
+        categories:   state.categories.length,
+        paymentTypes: state.paymentTypes.length,
+        expenses:     state.expenses.length
+      });
+
+      return state;
+
+    } catch (err) {
+      console.error('❌ Sync failed:', err.message);
+      throw err;
+
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  /* ============================================
+     Push — ส่งข้อมูลขึ้น Sheets (fire & forget)
+  ============================================ */
+  async function pushToSheets() {
+    if (!CONFIG.SHEETS_API_URL) {
+      console.warn('SHEETS_API_URL ไม่ได้ตั้งค่า — ข้ามการ sync');
+      return;
+    }
+
+    try {
+      await fetch(CONFIG.SHEETS_API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'syncAll',
+          data: {
+            categories:   state.categories,
+            paymentTypes: state.paymentTypes,
+            expenses:     state.expenses
+          }
+        })
+      });
+      console.log('📤 Pushed to Sheets');
+    } catch (err) {
+      console.warn('Push failed:', err.message);
+    }
+  }
+
+  /* ============================================
+     Init — Hybrid Load
+  ============================================ */
+  async function init() {
+    // 1. โหลดจาก localStorage ทันที (เร็วสุด)
+    const hasLocal = loadFromLocal();
+
+    if (!hasLocal) {
+      seed();
+    }
+
+    // 2. ถ้ามี API → ดึงใหม่เบื้องหลัง
+    if (CONFIG.SHEETS_API_URL && CONFIG.DATA_MODE === 'sheets') {
+      try {
+        await syncFromSheets();
+      } catch (err) {
+        console.warn('Sync from Sheets failed:', err.message);
+        // ถ้ามี cache → ใช้ cache ต่อ
+        // ถ้าไม่มี cache เลย → โยน error
+        if (!hasLocal) throw err;
+      }
+    }
+
+    return state;
+  }
+
+  /* ============================================
+     Utilities
+  ============================================ */
   function createId(prefix) {
-    return prefix + Date.now().toString(36).toUpperCase()
+    return prefix
+      + Date.now().toString(36).toUpperCase()
       + Math.random().toString(36).substring(2, 6).toUpperCase();
   }
 
-  /* ---------- Categories ---------- */
-  function getCategories()  { return state.categories; }
-  function getCategory(id)  { return state.categories.find(c => c.id === id); }
-  function getCategoryByName(name) { return state.categories.find(c => c.name === name); }
+  /* ============================================
+     Categories
+  ============================================ */
+  function getCategories()          { return state.categories; }
+  function getCategory(id)          { return state.categories.find(c => c.id === id); }
+  function getCategoryByName(name)  { return state.categories.find(c => c.name === name); }
 
   function addCategory({ name, budget, icon }) {
     name = String(name || '').trim();
@@ -72,7 +257,8 @@ const Storage = (() => {
       isActive: true
     };
     state.categories.push(cat);
-    save();
+    saveToLocal();
+    pushToSheets();
     return cat;
   }
 
@@ -88,7 +274,8 @@ const Storage = (() => {
     cat.name   = trimmed;
     cat.budget = Number(budget) || 0;
     cat.icon   = String(icon || 'fa-tag').trim();
-    save();
+    saveToLocal();
+    pushToSheets();
     return cat;
   }
 
@@ -96,7 +283,8 @@ const Storage = (() => {
     const cat = getCategory(id);
     if (!cat) throw new Error('ไม่พบหมวดหมู่');
     cat.isActive = !cat.isActive;
-    save();
+    saveToLocal();
+    pushToSheets();
     return cat;
   }
 
@@ -104,12 +292,15 @@ const Storage = (() => {
     const idx = state.categories.findIndex(c => c.id === id);
     if (idx === -1) throw new Error('ไม่พบหมวดหมู่');
     state.categories.splice(idx, 1);
-    save();
+    saveToLocal();
+    pushToSheets();
   }
 
-  /* ---------- Payment Types ---------- */
-  function getPaymentTypes() { return state.paymentTypes; }
-  function getPaymentType(id) { return state.paymentTypes.find(p => p.id === id); }
+  /* ============================================
+     Payment Types
+  ============================================ */
+  function getPaymentTypes()          { return state.paymentTypes; }
+  function getPaymentType(id)         { return state.paymentTypes.find(p => p.id === id); }
   function getPaymentTypeByName(name) { return state.paymentTypes.find(p => p.name === name); }
 
   function addPaymentType({ name, icon }) {
@@ -125,7 +316,8 @@ const Storage = (() => {
       isActive: true
     };
     state.paymentTypes.push(pay);
-    save();
+    saveToLocal();
+    pushToSheets();
     return pay;
   }
 
@@ -140,7 +332,8 @@ const Storage = (() => {
 
     pay.name = trimmed;
     pay.icon = String(icon || 'fa-wallet').trim();
-    save();
+    saveToLocal();
+    pushToSheets();
     return pay;
   }
 
@@ -148,7 +341,8 @@ const Storage = (() => {
     const pay = getPaymentType(id);
     if (!pay) throw new Error('ไม่พบช่องทางชำระเงิน');
     pay.isActive = !pay.isActive;
-    save();
+    saveToLocal();
+    pushToSheets();
     return pay;
   }
 
@@ -156,10 +350,13 @@ const Storage = (() => {
     const idx = state.paymentTypes.findIndex(p => p.id === id);
     if (idx === -1) throw new Error('ไม่พบช่องทางชำระเงิน');
     state.paymentTypes.splice(idx, 1);
-    save();
+    saveToLocal();
+    pushToSheets();
   }
 
-  /* ---------- Expenses ---------- */
+  /* ============================================
+     Expenses
+  ============================================ */
   function getExpenses() {
     return [...state.expenses].sort((a, b) => {
       if (a.date !== b.date) return b.date.localeCompare(a.date);
@@ -175,11 +372,11 @@ const Storage = (() => {
     const description = String(payload.description || '').trim();
     const note        = String(payload.note || '').trim();
 
-    if (!date)                       throw new Error('กรุณาระบุวันที่');
-    if (!amount || amount <= 0)      throw new Error('จำนวนเงินไม่ถูกต้อง');
-    if (!category)                   throw new Error('กรุณาเลือกหมวดหมู่');
-    if (!paymentType)                throw new Error('กรุณาเลือกช่องทางชำระเงิน');
-    if (!description)                throw new Error('กรุณาระบุรายการ');
+    if (!date)                  throw new Error('กรุณาระบุวันที่');
+    if (!amount || amount <= 0) throw new Error('จำนวนเงินไม่ถูกต้อง');
+    if (!category)              throw new Error('กรุณาเลือกหมวดหมู่');
+    if (!paymentType)           throw new Error('กรุณาเลือกช่องทางชำระเงิน');
+    if (!description)           throw new Error('กรุณาระบุรายการ');
 
     const exp = {
       id: createId('EXP'),
@@ -187,7 +384,8 @@ const Storage = (() => {
       createdAt: new Date().toISOString()
     };
     state.expenses.push(exp);
-    save();
+    saveToLocal();
+    pushToSheets();
     return exp;
   }
 
@@ -195,15 +393,20 @@ const Storage = (() => {
     const idx = state.expenses.findIndex(e => e.id === id);
     if (idx === -1) throw new Error('ไม่พบรายการ');
     state.expenses.splice(idx, 1);
-    save();
+    saveToLocal();
+    pushToSheets();
   }
 
-  /* ---------- Import / Export ---------- */
+  /* ============================================
+     Import / Export
+  ============================================ */
   function exportData() {
     return {
       version: CONFIG.VERSION,
       exportedAt: new Date().toISOString(),
-      ...state
+      categories:   state.categories,
+      paymentTypes: state.paymentTypes,
+      expenses:     state.expenses
     };
   }
 
@@ -215,13 +418,15 @@ const Storage = (() => {
     state.categories   = json.categories;
     state.paymentTypes = json.paymentTypes;
     state.expenses     = Array.isArray(json.expenses) ? json.expenses : [];
-    save();
+    saveToLocal();
+    pushToSheets();
     return state;
   }
 
   function clearAll() {
     state.expenses = [];
-    save();
+    saveToLocal();
+    pushToSheets();
   }
 
   function resetAll() {
@@ -230,33 +435,27 @@ const Storage = (() => {
     return state;
   }
 
-  /* ---------- Google Sheets Sync ---------- */
-  async function syncToSheets() {
-    const url = CONFIG.SHEETS_API_URL;
-    if (!url) throw new Error('ยังไม่ได้ตั้งค่า Google Sheets API URL');
-
-    // ใช้ fetch แบบ text/plain เพื่อเลี่ยง CORS preflight
-    const res = await fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'syncAll',
-        data: exportData()
-      })
-    });
-    return { status: 'success' };
-  }
-
+  /* ============================================
+     Public API
+  ============================================ */
   return {
-    load, save, seed,
+    init,
+    load: loadFromLocal,
+    syncFromSheets,
+    pushToSheets,
+
     getCategories, getCategory, getCategoryByName,
     addCategory, updateCategory, toggleCategoryStatus, deleteCategory,
+
     getPaymentTypes, getPaymentType, getPaymentTypeByName,
     addPaymentType, updatePaymentType, togglePaymentTypeStatus, deletePaymentType,
+
     getExpenses, addExpense, deleteExpense,
+
     exportData, importData, clearAll, resetAll,
-    syncToSheets,
-    getState: () => state
+
+    getState: () => state,
+    getLastSyncTime: () => lastSyncTime,
+    isSyncing: () => isSyncing
   };
 })();
