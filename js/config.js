@@ -3,11 +3,16 @@
 ============================================ */
 const CONFIG = {
   STORAGE_KEY: 'expenseTrackerV3',
-  VERSION: '3.0.0',
+  VERSION: '3.1.0',
 
-  // Google Sheets (optional) — ใส่ Web App URL ของคุณ
-  // ถ้าไม่ใช้ ปล่อยว่างไว้
-  SHEETS_API_URL: '',
+  // ⭐ ใส่ URL ของคุณตรงนี้ (ลงท้าย /exec)
+  SHEETS_API_URL: 'https://script.google.com/macros/s/AKfycbwDV_G-UI_gez0cIb-Ijp01JEbwJnBZndgfgqUqApd9vQGYgC0M_GBMCE8nqyzV3RnD/exec',
+
+  CACHE_TTL: 5 * 60 * 1000,
+  DATA_MODE: 'sheets',
+
+  SEED: { /* คงเดิม */ }
+};
 
   // Seed data (ใช้ครั้งแรก)
   SEED: {
