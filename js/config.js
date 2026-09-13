@@ -1,20 +1,17 @@
 /* ============================================
    Config & Constants
+   V3.1.0
 ============================================ */
 const CONFIG = {
   STORAGE_KEY: 'expenseTrackerV3',
   VERSION: '3.1.0',
 
-  // ⭐ ใส่ URL ของคุณตรงนี้ (ลงท้าย /exec)
+  // ⭐ วาง Web App URL ของคุณตรงนี้ (ต้องลงท้าย /exec)
   SHEETS_API_URL: 'https://script.google.com/macros/s/AKfycbwDV_G-UI_gez0cIb-Ijp01JEbwJnBZndgfgqUqApd9vQGYgC0M_GBMCE8nqyzV3RnD/exec',
 
   CACHE_TTL: 5 * 60 * 1000,
   DATA_MODE: 'sheets',
 
-  SEED: { /* คงเดิม */ }
-};
-
-  // Seed data (ใช้ครั้งแรก)
   SEED: {
     categories: [
       { id: 'CAT-01', name: 'ค่าอาหาร',              budget: 4000, icon: 'fa-utensils',      isActive: true },
@@ -29,18 +26,19 @@ const CONFIG = {
       { id: 'CAT-10', name: 'ค่าอื่นๆ',              budget: 300,  icon: 'fa-shapes',        isActive: true },
       { id: 'CAT-11', name: 'ค่าหวย',                budget: 1200, icon: 'fa-ticket',        isActive: true }
     ],
+
     paymentTypes: [
-      { id: 'PAY001', name: 'เงินสด',       icon: 'fa-money-bill-wave',    isActive: true },
-      { id: 'PAY002', name: 'พร้อมเพย์',    icon: 'fa-qrcode',             isActive: true },
-      { id: 'PAY003', name: 'บัตรเครดิต',  icon: 'fa-credit-card',        isActive: true },
-      { id: 'PAY004', name: 'บัตรเดบิต',   icon: 'fa-credit-card',        isActive: true },
-      { id: 'PAY005', name: 'โอนเงิน',      icon: 'fa-building-columns',   isActive: true },
-      { id: 'PAY006', name: 'อื่นๆ',        icon: 'fa-wallet',             isActive: true }
+      { id: 'PAY001', name: 'เงินสด',       icon: 'fa-money-bill-wave',  isActive: true },
+      { id: 'PAY002', name: 'พร้อมเพย์',    icon: 'fa-qrcode',           isActive: true },
+      { id: 'PAY003', name: 'บัตรเครดิต',  icon: 'fa-credit-card',      isActive: true },
+      { id: 'PAY004', name: 'บัตรเดบิต',   icon: 'fa-credit-card',      isActive: true },
+      { id: 'PAY005', name: 'โอนเงิน',      icon: 'fa-building-columns', isActive: true },
+      { id: 'PAY006', name: 'อื่นๆ',        icon: 'fa-wallet',           isActive: true }
     ]
   },
 
   PASTEL_COLORS: [
-    '#8b80f9','#f472b6','#38bdf8','#34d399','#fbbf24',
-    '#a78bfa','#fb7185','#2dd4bf','#f87171','#818cf8'
+    '#8b80f9', '#f472b6', '#38bdf8', '#34d399', '#fbbf24',
+    '#a78bfa', '#fb7185', '#2dd4bf', '#f87171', '#818cf8'
   ]
 };
