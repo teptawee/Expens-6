@@ -1,11 +1,14 @@
 /* ============================================
    App — Main Controller
+   V3.1.0
 ============================================ */
 const App = (() => {
 
   let PAGINATION = { currentPage: 1, pageSize: 10 };
 
-  /* ---------- View Management ---------- */
+  /* ============================================
+     View Management
+  ============================================ */
   function showView(id) {
     document.querySelectorAll('.view-section').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
@@ -28,7 +31,9 @@ const App = (() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /* ---------- Render Dashboard ---------- */
+  /* ============================================
+     Dashboard
+  ============================================ */
   function renderDashboard() {
     const expenses = Storage.getExpenses();
     const now = new Date();
@@ -41,9 +46,9 @@ const App = (() => {
     const lastMonday = new Date(monday); lastMonday.setDate(lastMonday.getDate() - 7);
     const nextMonday = new Date(monday); nextMonday.setDate(nextMonday.getDate() + 7);
 
-    const currentMonth = `${now.getFullYear()}-${UI.pad(now.getMonth()+1)}`;
+    const currentMonth = `${now.getFullYear()}-${UI.pad(now.getMonth() + 1)}`;
     const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonth = `${lm.getFullYear()}-${UI.pad(lm.getMonth()+1)}`;
+    const lastMonth = `${lm.getFullYear()}-${UI.pad(lm.getMonth() + 1)}`;
 
     const currentYear = String(now.getFullYear());
     const lastYear = String(now.getFullYear() - 1);
@@ -77,7 +82,6 @@ const App = (() => {
     document.getElementById('badgeMonth').innerHTML = renderCompareBadge(monthTotal, lastMonthTotal, 'เดือนที่แล้ว');
     document.getElementById('badgeYear').innerHTML  = renderCompareBadge(yearTotal, lastYearTotal, 'ปีที่แล้ว');
 
-    // Recent table
     const recent = expenses.slice(0, 5);
     const body = document.getElementById('dashRecentTable');
 
@@ -109,10 +113,13 @@ const App = (() => {
     return `<div class="compare-badge neutral"><i class="fa-solid fa-equals"></i> เท่าเดิม</div>`;
   }
 
-  /* ---------- Payment Summary ---------- */
+  /* ============================================
+     Payment Summary
+  ============================================ */
   function renderPaymentSummary() {
-    const key = `${new Date().getFullYear()}-${UI.pad(new Date().getMonth()+1)}`;
+    const key = `${new Date().getFullYear()}-${UI.pad(new Date().getMonth() + 1)}`;
     const totals = {};
+
     Storage.getExpenses().filter(x => x.date.startsWith(key)).forEach(x => {
       totals[x.paymentType] = (totals[x.paymentType] || 0) + Number(x.amount || 0);
     });
@@ -150,7 +157,9 @@ const App = (() => {
     }).join('');
   }
 
-  /* ---------- Dropdowns ---------- */
+  /* ============================================
+     Dropdowns
+  ============================================ */
   function renderDropdowns() {
     const activeCats = Storage.getCategories().filter(x => x.isActive);
     const activePays = Storage.getPaymentTypes().filter(x => x.isActive);
@@ -176,7 +185,9 @@ const App = (() => {
     payFilter.value = oldPay;
   }
 
-  /* ---------- History ---------- */
+  /* ============================================
+     History
+  ============================================ */
   function getFilteredExpenses() {
     const search = (document.getElementById('filterSearch').value || '').toLowerCase();
     const start  = document.getElementById('filterStartDate').value;
@@ -264,11 +275,14 @@ const App = (() => {
     nav.innerHTML = html;
   }
 
-  /* ---------- Master tables ---------- */
+  /* ============================================
+     Master Tables
+  ============================================ */
   function renderMasterTables() {
-    // Category
-    document.getElementById('categoryTableBody').innerHTML =
-      Storage.getCategories().map(x => `
+    // Categories
+    const catBody = document.getElementById('categoryTableBody');
+    if (catBody) {
+      catBody.innerHTML = Storage.getCategories().map(x => `
         <tr style="opacity:${x.isActive ? 1 : .55}">
           <td><span class="badge"><i class="fa-solid ${UI.escapeHtml(x.icon)}"></i> ${UI.escapeHtml(x.name)}</span></td>
           <td>${UI.fmtMoney(x.budget)}</td>
@@ -293,10 +307,12 @@ const App = (() => {
           </td>
         </tr>
       `).join('');
+    }
 
-    // Payment
-    document.getElementById('paymentTableBody').innerHTML =
-      Storage.getPaymentTypes().map(x => `
+    // Payments
+    const payBody = document.getElementById('paymentTableBody');
+    if (payBody) {
+      payBody.innerHTML = Storage.getPaymentTypes().map(x => `
         <tr style="opacity:${x.isActive ? 1 : .55}">
           <td><span class="badge badge-payment"><i class="fa-solid ${UI.escapeHtml(x.icon)}"></i> ${UI.escapeHtml(x.name)}</span></td>
           <td>
@@ -320,20 +336,25 @@ const App = (() => {
           </td>
         </tr>
       `).join('');
+    }
   }
 
-  /* ---------- Icon helpers ---------- */
+  /* ============================================
+     Icon Helpers
+  ============================================ */
   function getCatIcon(name) {
     const item = Storage.getCategoryByName(name);
-    return item?.icon || 'fa-tag';
+    return (item && item.icon) || 'fa-tag';
   }
 
   function getPayIcon(name) {
     const item = Storage.getPaymentTypeByName(name);
-    return item?.icon || 'fa-wallet';
+    return (item && item.icon) || 'fa-wallet';
   }
 
-  /* ---------- Helpers ---------- */
+  /* ============================================
+     Helpers
+  ============================================ */
   function getStartOfWeek(date) {
     const d = new Date(date);
     const day = d.getDay() || 7;
@@ -342,40 +363,55 @@ const App = (() => {
     return d;
   }
 
-  /* ---------- Render All ---------- */
+  /* ============================================
+     Render All
+  ============================================ */
   function renderAll() {
-    renderDashboard();
-    renderPaymentSummary();
-    Charts.renderAll(Storage.getExpenses());
-    renderDropdowns();
-    renderHistory();
-    renderMasterTables();
+    try {
+      renderDashboard();
+      renderPaymentSummary();
+      Charts.renderAll(Storage.getExpenses());
+      renderDropdowns();
+      renderHistory();
+      renderMasterTables();
+    } catch (err) {
+      console.error('Render error:', err);
+      UI.showToast('แสดงผลไม่สำเร็จ: ' + err.message, 'fa-triangle-exclamation');
+    }
   }
 
-  /* ---------- Event Handlers ---------- */
+  /* ============================================
+     Event Handlers — Setup
+  ============================================ */
   function setupEventListeners() {
 
-    // Nav buttons
+    // Navigation
     document.querySelectorAll('.nav-btn, .tab-btn').forEach(btn => {
       btn.addEventListener('click', () => showView(btn.dataset.view));
     });
 
     // FAB
     const fab = document.getElementById('quickAddFab');
-    if (fab) fab.addEventListener('click', () => {
-      showView('viewExpense');
-      setTimeout(() => document.getElementById('expAmount').focus(), 350);
-    });
+    if (fab) {
+      fab.addEventListener('click', () => {
+        showView('viewExpense');
+        setTimeout(() => {
+          const el = document.getElementById('expAmount');
+          if (el) el.focus();
+        }, 350);
+      });
+    }
 
-    // Modal close (delegated)
+    // Modal + data-action (delegated)
     document.addEventListener('click', e => {
+      // Close button
       const closeBtn = e.target.closest('[data-close]');
       if (closeBtn) {
         UI.closeModal(closeBtn.dataset.close);
         return;
       }
 
-      // click backdrop
+      // Backdrop click
       if (e.target.classList.contains('modal-overlay')) {
         e.target.classList.remove('active');
         return;
@@ -385,7 +421,8 @@ const App = (() => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
 
-      const { action, id } = btn.dataset;
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
 
       switch (action) {
         case 'delete-expense': handleDeleteExpense(id); break;
@@ -398,78 +435,91 @@ const App = (() => {
       }
     });
 
-    // Expense form
-    document.getElementById('expenseForm').addEventListener('submit', e => {
-      e.preventDefault();
-      handleExpenseSubmit();
-    });
+    // Forms
+    const expForm = document.getElementById('expenseForm');
+    if (expForm) expForm.addEventListener('submit', e => { e.preventDefault(); handleExpenseSubmit(); });
 
-    // Add category
-    document.getElementById('addCatForm').addEventListener('submit', e => {
-      e.preventDefault();
-      handleAddCategory();
-    });
+    const addCatForm = document.getElementById('addCatForm');
+    if (addCatForm) addCatForm.addEventListener('submit', e => { e.preventDefault(); handleAddCategory(); });
 
-    // Add payment
-    document.getElementById('addPayForm').addEventListener('submit', e => {
-      e.preventDefault();
-      handleAddPayment();
-    });
+    const addPayForm = document.getElementById('addPayForm');
+    if (addPayForm) addPayForm.addEventListener('submit', e => { e.preventDefault(); handleAddPayment(); });
 
-    // Edit category form
-    document.getElementById('editCatForm').addEventListener('submit', e => {
-      e.preventDefault();
-      handleSaveEditCat();
-    });
+    const editCatForm = document.getElementById('editCatForm');
+    if (editCatForm) editCatForm.addEventListener('submit', e => { e.preventDefault(); handleSaveEditCat(); });
 
-    // Edit payment form
-    document.getElementById('editPayForm').addEventListener('submit', e => {
-      e.preventDefault();
-      handleSaveEditPay();
-    });
+    const editPayForm = document.getElementById('editPayForm');
+    if (editPayForm) editPayForm.addEventListener('submit', e => { e.preventDefault(); handleSaveEditPay(); });
 
     // Filters
     ['filterSearch', 'filterStartDate', 'filterEndDate', 'filterCat', 'filterPay'].forEach(id => {
       const el = document.getElementById(id);
+      if (!el) return;
       el.addEventListener(id === 'filterSearch' ? 'input' : 'change', () => {
         PAGINATION.currentPage = 1;
         renderHistory();
       });
     });
 
-    document.getElementById('resetFiltersBtn').addEventListener('click', () => {
-      ['filterSearch', 'filterStartDate', 'filterEndDate', 'filterCat', 'filterPay'].forEach(id => {
-        document.getElementById(id).value = '';
+    const resetBtn = document.getElementById('resetFiltersBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        ['filterSearch', 'filterStartDate', 'filterEndDate', 'filterCat', 'filterPay'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        PAGINATION.currentPage = 1;
+        renderHistory();
       });
-      PAGINATION.currentPage = 1;
-      renderHistory();
-    });
+    }
 
-    document.getElementById('pageSizeSelect').addEventListener('change', e => {
-      PAGINATION.pageSize = Number(e.target.value);
-      PAGINATION.currentPage = 1;
-      renderHistory();
-    });
+    const pageSize = document.getElementById('pageSizeSelect');
+    if (pageSize) {
+      pageSize.addEventListener('change', e => {
+        PAGINATION.pageSize = Number(e.target.value);
+        PAGINATION.currentPage = 1;
+        renderHistory();
+      });
+    }
 
-    // Pagination click (delegated)
-    document.getElementById('paginationNav').addEventListener('click', e => {
-      const btn = e.target.closest('[data-page]');
-      if (!btn || btn.disabled) return;
-      PAGINATION.currentPage = Number(btn.dataset.page);
-      renderHistory();
-    });
+    // Pagination (delegated)
+    const pag = document.getElementById('paginationNav');
+    if (pag) {
+      pag.addEventListener('click', e => {
+        const btn = e.target.closest('[data-page]');
+        if (!btn || btn.disabled) return;
+        PAGINATION.currentPage = Number(btn.dataset.page);
+        renderHistory();
+      });
+    }
 
-    // Data management
-    document.getElementById('exportBtn').addEventListener('click', handleExport);
-    document.getElementById('importBtn').addEventListener('click', () => {
-      document.getElementById('importFile').click();
-    });
-    document.getElementById('importFile').addEventListener('change', handleImport);
-    document.getElementById('syncSheetsBtn').addEventListener('click', handleSyncSheets);
-    document.getElementById('clearAllBtn').addEventListener('click', handleClearAll);
+    // Data Management
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', handleExport);
+
+    const importBtn = document.getElementById('importBtn');
+    if (importBtn) {
+      importBtn.addEventListener('click', () => {
+        document.getElementById('importFile').click();
+      });
+    }
+
+    const importFile = document.getElementById('importFile');
+    if (importFile) importFile.addEventListener('change', handleImport);
+
+    const syncBtn = document.getElementById('syncSheetsBtn');
+    if (syncBtn) syncBtn.addEventListener('click', handleSyncSheets);
+
+    const refreshBtn = document.getElementById('refreshSyncBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', handleRefreshSync);
+
+    const clearBtn = document.getElementById('clearAllBtn');
+    if (clearBtn) clearBtn.addEventListener('click', handleClearAll);
   }
 
-  /* ---------- Handlers ---------- */
+  /* ============================================
+     Handlers
+  ============================================ */
   function handleExpenseSubmit() {
     try {
       const payload = {
@@ -489,7 +539,6 @@ const App = (() => {
 
       renderAll();
       showView('viewDashboard');
-
     } catch (err) {
       UI.showToast(err.message, 'fa-triangle-exclamation');
     }
@@ -626,7 +675,9 @@ const App = (() => {
     }
   }
 
-  /* ---------- Data Management ---------- */
+  /* ============================================
+     Data Management Handlers
+  ============================================ */
   function handleExport() {
     const data = Storage.exportData();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -659,34 +710,60 @@ const App = (() => {
   }
 
   async function handleSyncSheets() {
-    if (!CONFIG.SHEETS_API_URL) {
-      UI.showToast('ยังไม่ได้ตั้งค่า SHEETS_API_URL ใน config.js', 'fa-triangle-exclamation');
-      return;
-    }
     UI.showLoading(true);
     try {
-      await Storage.syncToSheets();
-      UI.showLoading(false);
-      UI.showToast('Sync ข้อมูลไป Google Sheets เรียบร้อยแล้ว');
+      await Storage.pushToSheets();
+      UI.showToast('Sync ขึ้น Google Sheets เรียบร้อยแล้ว');
     } catch (err) {
-      UI.showLoading(false);
       UI.showToast(err.message, 'fa-triangle-exclamation');
+    } finally {
+      UI.showLoading(false);
+    }
+  }
+
+  async function handleRefreshSync() {
+    UI.showLoading(true);
+    try {
+      await Storage.syncFromSheets();
+      renderAll();
+      UI.showToast('ดึงข้อมูลล่าสุดเรียบร้อยแล้ว');
+    } catch (err) {
+      UI.showToast(err.message, 'fa-triangle-exclamation');
+    } finally {
+      UI.showLoading(false);
     }
   }
 
   function handleClearAll() {
-    if (!confirm('ลบข้อมูลทั้งหมด? (Master Data จะถูกเก็บไว้)')) return;
+    if (!confirm('ลบข้อมูลรายการทั้งหมด? (Master Data จะถูกเก็บไว้)')) return;
     Storage.clearAll();
     UI.showToast('ล้างข้อมูลเรียบร้อยแล้ว');
     renderAll();
   }
 
-  /* ---------- Init ---------- */
-  function init() {
-    Storage.load();
-    setupEventListeners();
-    document.getElementById('expDate').valueAsDate = new Date();
-    renderAll();
+  /* ============================================
+     Init
+  ============================================ */
+  async function init() {
+    UI.showLoading(true);
+
+    try {
+      await Storage.init();
+
+      setupEventListeners();
+
+      const expDate = document.getElementById('expDate');
+      if (expDate) expDate.valueAsDate = new Date();
+
+      renderAll();
+
+      console.log('🚀 App ready');
+    } catch (err) {
+      console.error('Init error:', err);
+      UI.showToast('โหลดข้อมูลไม่สำเร็จ: ' + err.message, 'fa-triangle-exclamation');
+    } finally {
+      UI.showLoading(false);
+    }
   }
 
   return { init, showView };
