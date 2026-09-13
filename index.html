@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#8b80f9">
+<meta name="description" content="ExpenseTracker V3 - บันทึกค่าใช้จ่ายส่วนตัว">
+<title>ExpenseTracker V3</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <span>กำลังโหลดข้อมูล...</span>
+</div>
+
+<!-- NAVBAR -->
+<header class="navbar">
+  <div class="nav-container">
+    <div class="brand">
+      <div class="brand-icon"><i class="fa-solid fa-wallet"></i></div>
+      <span class="brand-name">ExpenseTracker V3</span>
+    </div>
+    <nav class="nav-links">
+      <button class="nav-btn active" data-view="viewDashboard">
+        <i class="fa-solid fa-chart-pie"></i> Dashboard
+      </button>
+      <button class="nav-btn" data-view="viewExpense">
+        <i class="fa-solid fa-circle-plus"></i> บันทึกรายจ่าย
+      </button>
+      <button class="nav-btn" data-view="viewHistory">
+        <i class="fa-solid fa-clock-rotate-left"></i> ประวัติ
+      </button>
+      <button class="nav-btn" data-view="viewMaster">
+        <i class="fa-solid fa-sliders"></i> Master
+      </button>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- DASHBOARD -->
+  <section id="viewDashboard" class="view-section active">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-header">
+          <div class="stat-icon pink"><i class="fa-solid fa-calendar-day"></i></div>
+          <div>
+            <div class="stat-label">รายจ่ายวันนี้</div>
+            <div class="stat-val" id="dashToday">฿0.00</div>
+          </div>
+        </div>
+        <div id="badgeToday"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <div class="stat-icon amber"><i class="fa-solid fa-calendar-week"></i></div>
+          <div>
+            <div class="stat-label">รายจ่ายสัปดาห์นี้</div>
+            <div class="stat-val" id="dashWeek">฿0.00</div>
+          </div>
+        </div>
+        <div id="badgeWeek"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <div class="stat-icon sky"><i class="fa-solid fa-calendar-days"></i></div>
+          <div>
+            <div class="stat-label">รายจ่ายเดือนนี้</div>
+            <div class="stat-val" id="dashMonth">฿0.00</div>
+          </div>
+        </div>
+        <div id="badgeMonth"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-header">
+          <div class="stat-icon mint"><i class="fa-solid fa-calendar-check"></i></div>
+          <div>
+            <div class="stat-label">รายจ่ายปีนี้</div>
+            <div class="stat-val" id="dashYear">฿0.00</div>
+          </div>
+        </div>
+        <div id="badgeYear"></div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-chart-line"></i> เปรียบเทียบรายวัน (7 วันล่าสุด)</div>
+        <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-chart-simple"></i> เปรียบเทียบรายสัปดาห์ (4 สัปดาห์ล่าสุด)</div>
+        <div class="chart-container"><canvas id="weeklyChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-chart-column"></i> เปรียบเทียบรายเดือน (6 เดือนล่าสุด)</div>
+        <div class="chart-container"><canvas id="monthlyChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-ranking-star"></i> Top 5 หมวดหมู่ที่ใช้เงินมากที่สุด</div>
+        <div class="chart-container"><canvas id="topCategoryChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-chart-pie"></i> สัดส่วนค่าใช้จ่ายตามหมวดหมู่</div>
+        <div class="chart-container small"><canvas id="categoryPieChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="fa-regular fa-credit-card"></i> สัดส่วนตามช่องทางชำระเงิน</div>
+        <div class="chart-container small"><canvas id="paymentPieChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-wallet"></i> สรุปยอดตามช่องทางชำระเงิน</div>
+      <div id="paymentSummaryCards" class="payment-summary-grid"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-bolt"></i> รายการล่าสุด</div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>วันที่</th><th>รายการ</th><th>หมวดหมู่</th><th>ช่องทาง</th><th>จำนวนเงิน</th>
+            </tr>
+          </thead>
+          <tbody id="dashRecentTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPENSE -->
+  <section id="viewExpense" class="view-section">
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-pen-to-square"></i> บันทึกค่าใช้จ่ายใหม่</div>
+      <form id="expenseForm">
+        <div class="form-grid">
+          <div class="form-group">
+            <label><i class="fa-regular fa-calendar"></i> วันที่</label>
+            <input type="date" id="expDate" required>
+          </div>
+          <div class="form-group">
+            <label><i class="fa-solid fa-baht-sign"></i> จำนวนเงิน</label>
+            <input type="number" step="0.01" min="0" id="expAmount" placeholder="0.00" required>
+          </div>
+          <div class="form-group">
+            <label><i class="fa-solid fa-tags"></i> หมวดหมู่</label>
+            <select id="expCategory" required><option value="">เลือกหมวดหมู่</option></select>
+          </div>
+          <div class="form-group">
+            <label><i class="fa-regular fa-credit-card"></i> ช่องทางชำระเงิน</label>
+            <select id="expPayment" required><option value="">เลือกช่องทาง</option></select>
+          </div>
+          <div class="form-group full">
+            <label><i class="fa-solid fa-align-left"></i> รายการ</label>
+            <input type="text" id="expDesc" placeholder="เช่น ค่าอาหารกลางวัน" required>
+          </div>
+          <div class="form-group full">
+            <label><i class="fa-regular fa-note-sticky"></i> หมายเหตุ</label>
+            <textarea id="expNote" rows="2" placeholder="รายละเอียดเพิ่มเติม"></textarea>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" type="submit">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
+          </button>
+          <button class="btn btn-secondary" type="reset">
+            <i class="fa-solid fa-arrow-rotate-left"></i> ล้างฟอร์ม
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section id="viewHistory" class="view-section">
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-list-check"></i> ประวัติรายการค่าใช้จ่าย</div>
+      <div class="filter-panel">
+        <div class="form-group">
+          <label><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</label>
+          <input id="filterSearch" type="text" placeholder="ค้นหารายการ...">
+        </div>
+        <div class="form-group">
+          <label>ตั้งแต่วันที่</label>
+          <input id="filterStartDate" type="date">
+        </div>
+        <div class="form-group">
+          <label>ถึงวันที่</label>
+          <input id="filterEndDate" type="date">
+        </div>
+        <div class="form-group">
+          <label>หมวดหมู่</label>
+          <select id="filterCat"><option value="">ทุกหมวดหมู่</option></select>
+        </div>
+        <div class="form-group">
+          <label>ชำระโดย</label>
+          <select id="filterPay"><option value="">ทุกช่องทาง</option></select>
+        </div>
+        <button class="btn btn-secondary" type="button" id="resetFiltersBtn">
+          <i class="fa-solid fa-rotate-left"></i> ล้างตัวกรอง
+        </button>
+      </div>
+
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>วันที่</th><th>รายการ</th><th>หมวดหมู่</th><th>ชำระโดย</th><th>จำนวนเงิน</th><th>จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination-wrapper">
+        <div>
+          แสดง
+          <select id="pageSizeSelect" style="width:auto;padding:5px">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+          รายการ/หน้า | ทั้งหมด <strong id="totalRecordCount">0</strong> รายการ
+        </div>
+        <div id="paginationNav" class="page-controls"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MASTER -->
+  <section id="viewMaster" class="view-section">
+    <div class="master-grid">
+
+      <div class="card">
+        <div class="card-title"><i class="fa-solid fa-tags"></i> หมวดหมู่ค่าใช้จ่าย</div>
+        <form id="addCatForm">
+          <div class="form-group">
+            <input id="newCatName" placeholder="ชื่อหมวดหมู่" required>
+          </div><br>
+          <div class="form-group">
+            <input id="newCatBudget" type="number" placeholder="งบประมาณ/เดือน" required>
+          </div><br>
+          <div class="form-group">
+            <input id="newCatIcon" value="fa-tag" placeholder="FontAwesome Icon">
+          </div><br>
+          <button class="btn btn-primary" style="width:100%" type="submit">
+            <i class="fa-solid fa-plus"></i> เพิ่มหมวดหมู่
+          </button>
+        </form>
+        <br>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr><th>หมวดหมู่</th><th>งบประมาณ</th><th>สถานะ</th><th>จัดการ</th></tr>
+            </thead>
+            <tbody id="categoryTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><i class="fa-regular fa-credit-card"></i> ช่องทางชำระเงิน</div>
+        <form id="addPayForm">
+          <div class="form-group">
+            <input id="newPayName" placeholder="ชื่อช่องทาง" required>
+          </div><br>
+          <div class="form-group">
+            <input id="newPayIcon" value="fa-wallet" placeholder="FontAwesome Icon">
+          </div><br>
+          <button class="btn btn-primary" style="width:100%" type="submit">
+            <i class="fa-solid fa-plus"></i> เพิ่มช่องทาง
+          </button>
+        </form>
+        <br>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr><th>ช่องทาง</th><th>สถานะ</th><th>จัดการ</th></tr>
+            </thead>
+            <tbody id="paymentTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Data Management -->
+    <div class="card">
+      <div class="card-title"><i class="fa-solid fa-database"></i> จัดการข้อมูล</div>
+      <div class="btn-group">
+        <button class="btn btn-sky" id="exportBtn">
+          <i class="fa-solid fa-download"></i> ส่งออก JSON
+        </button>
+        <button class="btn btn-sky" id="importBtn">
+          <i class="fa-solid fa-upload"></i> นำเข้า JSON
+        </button>
+        <button class="btn btn-amber" id="syncSheetsBtn">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Sync Google Sheets
+        </button>
+        <button class="btn btn-rose" id="clearAllBtn">
+          <i class="fa-solid fa-trash"></i> ล้างข้อมูลทั้งหมด
+        </button>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </div>
+  </section>
+
+</main>
+
+<!-- MODALS -->
+<div id="editCatModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span><i class="fa-solid fa-pen"></i> แก้ไขหมวดหมู่</span>
+      <i class="fa-solid fa-xmark" data-close="editCatModal" style="cursor:pointer"></i>
+    </div>
+    <form id="editCatForm">
+      <input type="hidden" id="editCatId">
+      <div class="form-group"><label>ชื่อหมวดหมู่</label><input id="editCatName" required></div><br>
+      <div class="form-group"><label>งบประมาณ</label><input id="editCatBudget" type="number" required></div><br>
+      <div class="form-group"><label>Icon</label><input id="editCatIcon" required></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" type="submit">บันทึก</button>
+        <button type="button" class="btn btn-secondary" data-close="editCatModal">ยกเลิก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="editPayModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span><i class="fa-solid fa-pen"></i> แก้ไขช่องทาง</span>
+      <i class="fa-solid fa-xmark" data-close="editPayModal" style="cursor:pointer"></i>
+    </div>
+    <form id="editPayForm">
+      <input type="hidden" id="editPayId">
+      <div class="form-group"><label>ชื่อช่องทาง</label><input id="editPayName" required></div><br>
+      <div class="form-group"><label>Icon</label><input id="editPayIcon" required></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" type="submit">บันทึก</button>
+        <button type="button" class="btn btn-secondary" data-close="editPayModal">ยกเลิก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- MOBILE TABBAR -->
+<nav class="tabbar" id="mobileTabbar">
+  <div class="tabbar-inner">
+    <button class="tab-btn active" data-view="viewDashboard">
+      <i class="fa-solid fa-chart-pie"></i><span>Dashboard</span>
+    </button>
+    <button class="tab-btn" data-view="viewHistory">
+      <i class="fa-solid fa-clock-rotate-left"></i><span>ประวัติ</span>
+    </button>
+    <button class="tab-btn" data-view="viewMaster">
+      <i class="fa-solid fa-sliders"></i><span>Master</span>
+    </button>
+    <button class="tab-btn" data-view="viewExpense">
+      <i class="fa-solid fa-circle-plus"></i><span>เพิ่ม</span>
+    </button>
+  </div>
+</nav>
+
+<button class="fab" id="quickAddFab" aria-label="Quick add">
+  <i class="fa-solid fa-plus"></i>
+</button>
+
+<!-- LIBS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- APP SCRIPTS -->
+<script src="js/config.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
