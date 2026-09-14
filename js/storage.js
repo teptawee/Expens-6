@@ -1,6 +1,6 @@
 /* ============================================
    Storage — Hybrid LocalStorage + Google Sheets
-   V3.1.0
+   V3.2.0
 ============================================ */
 const Storage = (() => {
 
@@ -59,7 +59,7 @@ const Storage = (() => {
   }
 
   /* ============================================
-     JSONP fetch (เลี่ยง CORS)
+     JSONP fetch
   ============================================ */
   function jsonpFetch(params) {
     return new Promise((resolve, reject) => {
@@ -70,7 +70,6 @@ const Storage = (() => {
 
       const callbackName = 'jsonp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
 
-      // สร้าง URL
       const query = Object.keys(params)
         .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k]))
         .join('&');
@@ -105,7 +104,6 @@ const Storage = (() => {
 
       document.head.appendChild(script);
 
-      // Timeout 20s
       setTimeout(() => {
         if (!done) {
           cleanup();
@@ -124,7 +122,6 @@ const Storage = (() => {
     }
 
     if (isSyncing) {
-      // รอให้รอบก่อนเสร็จ
       return new Promise((resolve) => {
         const check = setInterval(() => {
           if (!isSyncing) {
@@ -173,7 +170,7 @@ const Storage = (() => {
   }
 
   /* ============================================
-     Push — ส่งข้อมูลขึ้น Sheets (fire & forget)
+     Push — ส่งข้อมูลขึ้น Sheets ผ่าน JSONP (GET)
   ============================================ */
   async function pushToSheets() {
     if (!CONFIG.SHEETS_API_URL) {
@@ -182,22 +179,32 @@ const Storage = (() => {
     }
 
     try {
-      await fetch(CONFIG.SHEETS_API_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'syncAll',
-          data: {
-            categories:   state.categories,
-            paymentTypes: state.paymentTypes,
-            expenses:     state.expenses
-          }
-        })
+      const payload = JSON.stringify({
+        categories:   state.categories,
+        paymentTypes: state.paymentTypes,
+        expenses:     state.expenses
       });
+
+      // ถ้า payload ยาวเกิน ~6KB → ส่งทีละ part
+      if (payload.length > 6000) {
+        console.warn('Payload ใหญ่เกิน — ส่งเฉพาะ expenses');
+        await jsonpFetch({
+          action: 'syncAll',
+          payload: JSON.stringify({ expenses: state.expenses })
+        });
+      } else {
+        const res = await jsonpFetch({ action: 'syncAll', payload });
+        if (!res || res.status !== 'success') {
+          throw new Error((res && res.message) || 'syncAll failed');
+        }
+      }
+
+      lastSyncTime = Date.now();
+      saveToLocal();
       console.log('📤 Pushed to Sheets');
     } catch (err) {
       console.warn('Push failed:', err.message);
+      // ไม่ throw เพื่อไม่ให้ flow หลักพัง
     }
   }
 
@@ -205,21 +212,17 @@ const Storage = (() => {
      Init — Hybrid Load
   ============================================ */
   async function init() {
-    // 1. โหลดจาก localStorage ทันที (เร็วสุด)
     const hasLocal = loadFromLocal();
 
     if (!hasLocal) {
       seed();
     }
 
-    // 2. ถ้ามี API → ดึงใหม่เบื้องหลัง
     if (CONFIG.SHEETS_API_URL && CONFIG.DATA_MODE === 'sheets') {
       try {
         await syncFromSheets();
       } catch (err) {
         console.warn('Sync from Sheets failed:', err.message);
-        // ถ้ามี cache → ใช้ cache ต่อ
-        // ถ้าไม่มี cache เลย → โยน error
         if (!hasLocal) throw err;
       }
     }
