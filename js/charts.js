@@ -106,7 +106,7 @@ const Charts = (() => {
           ...baseOptions.plugins,
           tooltip: {
             ...baseOptions.plugins.tooltip,
-            callbacks: { label: c => ` รายจ่าย: ${fmtMoney(c.raw)}` }
+            callbacks: { label: c => ` ยอด: ${fmtMoney(c.raw)}` }
           }
         }
       }
@@ -145,7 +145,7 @@ const Charts = (() => {
           ...baseOptions.plugins,
           tooltip: {
             ...baseOptions.plugins.tooltip,
-            callbacks: { label: c => ` รายจ่าย: ${fmtMoney(c.raw)}` }
+            callbacks: { label: c => ` ยอด: ${fmtMoney(c.raw)}` }
           }
         }
       }
@@ -183,7 +183,7 @@ const Charts = (() => {
           ...baseOptions.plugins,
           tooltip: {
             ...baseOptions.plugins.tooltip,
-            callbacks: { label: c => ` รายจ่าย: ${fmtMoney(c.raw)}` }
+            callbacks: { label: c => ` ยอด: ${fmtMoney(c.raw)}` }
           }
         }
       }
@@ -255,7 +255,7 @@ const Charts = (() => {
     if (!data.length) {
       instances.categoryPie = new Chart(ctx, {
         type: 'doughnut',
-        data: { labels: ['ไม่มีข้อมูลเดือนนี้'], datasets: [{ data: [1], backgroundColor: ['#e2e8f0'] }] },
+        data: { labels: ['ไม่มีข้อมูล'], datasets: [{ data: [1], backgroundColor: ['#e2e8f0'] }] },
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: { legend: { position: 'bottom', labels: { font: { family: 'Prompt', size: 11 } } }, tooltip: { enabled: false } }
@@ -318,7 +318,7 @@ const Charts = (() => {
     if (!data.length) {
       instances.paymentPie = new Chart(ctx, {
         type: 'doughnut',
-        data: { labels: ['ไม่มีข้อมูลเดือนนี้'], datasets: [{ data: [1], backgroundColor: ['#e2e8f0'] }] },
+        data: { labels: ['ไม่มีข้อมูล'], datasets: [{ data: [1], backgroundColor: ['#e2e8f0'] }] },
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: { legend: { position: 'bottom', labels: { font: { family: 'Prompt', size: 11 } } }, tooltip: { enabled: false } }
