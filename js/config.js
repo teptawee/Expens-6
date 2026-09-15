@@ -1,16 +1,19 @@
 /* ============================================
    Config & Constants
-   V3.1.0
+   V3.3.0
 ============================================ */
 const CONFIG = {
   STORAGE_KEY: 'expenseTrackerV3',
-  VERSION: '3.1.0',
+  VERSION: '3.3.0',
 
   // ⭐ วาง Web App URL ของคุณตรงนี้ (ต้องลงท้าย /exec)
   SHEETS_API_URL: 'https://script.google.com/macros/s/AKfycbwDV_G-UI_gez0cIb-Ijp01JEbwJnBZndgfgqUqApd9vQGYgC0M_GBMCE8nqyzV3RnD/exec',
 
   CACHE_TTL: 5 * 60 * 1000,
   DATA_MODE: 'sheets',
+
+  // ⭐ ถ้า payload > ค่านี้ → ใช้ POST แทน JSONP
+  POST_THRESHOLD: 5000,
 
   SEED: {
     categories: [
