@@ -1,6 +1,6 @@
 /* ============================================
    Storage — Hybrid LocalStorage + Google Sheets
-   V3.2.0
+   V3.3.0 — เพิ่ม POST fallback สำหรับ payload ใหญ่
 ============================================ */
 const Storage = (() => {
 
@@ -107,10 +107,35 @@ const Storage = (() => {
       setTimeout(() => {
         if (!done) {
           cleanup();
-          reject(new Error('หมดเวลาเชื่อมต่อ Sheets (เกิน 20 วินาที)'));
+          reject(new Error('หมดเวลาเชื่อมต่อ Sheets (เกิน 30 วินาที)'));
         }
-      }, 20000);
+      }, 30000);
     });
+  }
+
+  /* ============================================
+     POST fetch (สำหรับ payload ใหญ่)
+  ============================================ */
+  async function postFetch(body) {
+    if (!CONFIG.SHEETS_API_URL) {
+      throw new Error('ยังไม่ได้ตั้งค่า SHEETS_API_URL');
+    }
+
+    const res = await fetch(CONFIG.SHEETS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+      redirect: 'follow'
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      throw new Error('API ตอบกลับไม่ใช่ JSON: ' + text.substring(0, 200));
+    }
   }
 
   /* ============================================
@@ -170,7 +195,9 @@ const Storage = (() => {
   }
 
   /* ============================================
-     Push — ส่งข้อมูลขึ้น Sheets ผ่าน JSONP (GET)
+     Push — ส่งข้อมูลขึ้น Sheets
+     - payload เล็ก → JSONP (GET)
+     - payload ใหญ่ → POST
   ============================================ */
   async function pushToSheets() {
     if (!CONFIG.SHEETS_API_URL) {
@@ -179,32 +206,40 @@ const Storage = (() => {
     }
 
     try {
-      const payload = JSON.stringify({
+      const data = {
         categories:   state.categories,
         paymentTypes: state.paymentTypes,
         expenses:     state.expenses
-      });
+      };
 
-      // ถ้า payload ยาวเกิน ~6KB → ส่งทีละ part
-      if (payload.length > 6000) {
-        console.warn('Payload ใหญ่เกิน — ส่งเฉพาะ expenses');
-        await jsonpFetch({
-          action: 'syncAll',
-          payload: JSON.stringify({ expenses: state.expenses })
-        });
+      const payloadStr = JSON.stringify(data);
+      const size = payloadStr.length;
+      console.log('📦 Payload size:', size, 'bytes');
+
+      let res;
+
+      if (size > (CONFIG.POST_THRESHOLD || 5000)) {
+        // ใช้ POST เมื่อ payload ใหญ่
+        console.log('📤 ใช้ POST (payload ใหญ่เกิน', CONFIG.POST_THRESHOLD, 'bytes)');
+        res = await postFetch({ action: 'syncAll', data });
       } else {
-        const res = await jsonpFetch({ action: 'syncAll', payload });
-        if (!res || res.status !== 'success') {
-          throw new Error((res && res.message) || 'syncAll failed');
-        }
+        // ใช้ JSONP เมื่อ payload เล็ก
+        console.log('📤 ใช้ JSONP');
+        res = await jsonpFetch({ action: 'syncAll', payload: payloadStr });
+      }
+
+      if (!res || res.status !== 'success') {
+        throw new Error((res && res.message) || 'syncAll failed');
       }
 
       lastSyncTime = Date.now();
       saveToLocal();
-      console.log('📤 Pushed to Sheets');
+      console.log('✅ Pushed to Sheets:', res);
+      return res;
+
     } catch (err) {
-      console.warn('Push failed:', err.message);
-      // ไม่ throw เพื่อไม่ให้ flow หลักพัง
+      console.error('❌ Push failed:', err.message);
+      throw err;
     }
   }
 
@@ -261,7 +296,7 @@ const Storage = (() => {
     };
     state.categories.push(cat);
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return cat;
   }
 
@@ -278,7 +313,7 @@ const Storage = (() => {
     cat.budget = Number(budget) || 0;
     cat.icon   = String(icon || 'fa-tag').trim();
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return cat;
   }
 
@@ -287,7 +322,7 @@ const Storage = (() => {
     if (!cat) throw new Error('ไม่พบหมวดหมู่');
     cat.isActive = !cat.isActive;
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return cat;
   }
 
@@ -296,7 +331,7 @@ const Storage = (() => {
     if (idx === -1) throw new Error('ไม่พบหมวดหมู่');
     state.categories.splice(idx, 1);
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
   }
 
   /* ============================================
@@ -320,7 +355,7 @@ const Storage = (() => {
     };
     state.paymentTypes.push(pay);
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return pay;
   }
 
@@ -336,7 +371,7 @@ const Storage = (() => {
     pay.name = trimmed;
     pay.icon = String(icon || 'fa-wallet').trim();
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return pay;
   }
 
@@ -345,7 +380,7 @@ const Storage = (() => {
     if (!pay) throw new Error('ไม่พบช่องทางชำระเงิน');
     pay.isActive = !pay.isActive;
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return pay;
   }
 
@@ -354,7 +389,7 @@ const Storage = (() => {
     if (idx === -1) throw new Error('ไม่พบช่องทางชำระเงิน');
     state.paymentTypes.splice(idx, 1);
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
   }
 
   /* ============================================
@@ -388,7 +423,7 @@ const Storage = (() => {
     };
     state.expenses.push(exp);
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return exp;
   }
 
@@ -397,7 +432,7 @@ const Storage = (() => {
     if (idx === -1) throw new Error('ไม่พบรายการ');
     state.expenses.splice(idx, 1);
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
   }
 
   /* ============================================
@@ -422,14 +457,14 @@ const Storage = (() => {
     state.paymentTypes = json.paymentTypes;
     state.expenses     = Array.isArray(json.expenses) ? json.expenses : [];
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
     return state;
   }
 
   function clearAll() {
     state.expenses = [];
     saveToLocal();
-    pushToSheets();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
   }
 
   function resetAll() {
