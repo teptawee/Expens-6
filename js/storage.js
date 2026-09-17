@@ -1,6 +1,6 @@
 /* ============================================
    Storage — Hybrid LocalStorage + Google Sheets
-   V3.3.0 — เพิ่ม POST fallback สำหรับ payload ใหญ่
+   V3.4.0 — Clean: เก็บเฉพาะ Master ใน Seed
 ============================================ */
 const Storage = (() => {
 
@@ -51,11 +51,19 @@ const Storage = (() => {
     }
   }
 
+  /* ============================================
+     Seed — Master เท่านั้น (ไม่มี Transaction)
+  ============================================ */
   function seed() {
     state.categories   = CONFIG.SEED.categories.map(c => ({ ...c }));
     state.paymentTypes = CONFIG.SEED.paymentTypes.map(p => ({ ...p }));
     state.expenses     = [];
     saveToLocal();
+  }
+
+  function seedMaster() {
+    state.categories   = CONFIG.SEED.categories.map(c => ({ ...c }));
+    state.paymentTypes = CONFIG.SEED.paymentTypes.map(p => ({ ...p }));
   }
 
   /* ============================================
@@ -196,8 +204,6 @@ const Storage = (() => {
 
   /* ============================================
      Push — ส่งข้อมูลขึ้น Sheets
-     - payload เล็ก → JSONP (GET)
-     - payload ใหญ่ → POST
   ============================================ */
   async function pushToSheets() {
     if (!CONFIG.SHEETS_API_URL) {
@@ -219,11 +225,9 @@ const Storage = (() => {
       let res;
 
       if (size > (CONFIG.POST_THRESHOLD || 5000)) {
-        // ใช้ POST เมื่อ payload ใหญ่
         console.log('📤 ใช้ POST (payload ใหญ่เกิน', CONFIG.POST_THRESHOLD, 'bytes)');
         res = await postFetch({ action: 'syncAll', data });
       } else {
-        // ใช้ JSONP เมื่อ payload เล็ก
         console.log('📤 ใช้ JSONP');
         res = await jsonpFetch({ action: 'syncAll', payload: payloadStr });
       }
@@ -275,7 +279,7 @@ const Storage = (() => {
   }
 
   /* ============================================
-     Categories
+     Categories (Master)
   ============================================ */
   function getCategories()          { return state.categories; }
   function getCategory(id)          { return state.categories.find(c => c.id === id); }
@@ -335,7 +339,7 @@ const Storage = (() => {
   }
 
   /* ============================================
-     Payment Types
+     Payment Types (Master)
   ============================================ */
   function getPaymentTypes()          { return state.paymentTypes; }
   function getPaymentType(id)         { return state.paymentTypes.find(p => p.id === id); }
@@ -393,7 +397,7 @@ const Storage = (() => {
   }
 
   /* ============================================
-     Expenses
+     Expenses (Transaction)
   ============================================ */
   function getExpenses() {
     return [...state.expenses].sort((a, b) => {
@@ -461,10 +465,23 @@ const Storage = (() => {
     return state;
   }
 
+  /* ============================================
+     Clear / Reset
+     - clearAll()     → ลบเฉพาะ Transaction (เก็บ Master)
+     - resetMaster()  → คืนค่า Master เป็น Seed (เก็บ Transaction)
+     - resetAll()     → Factory Reset (ลบทั้งหมด + Seed Master ใหม่)
+  ============================================ */
   function clearAll() {
     state.expenses = [];
     saveToLocal();
     pushToSheets().catch(err => console.error('Sync failed:', err.message));
+  }
+
+  function resetMaster() {
+    seedMaster();
+    saveToLocal();
+    pushToSheets().catch(err => console.error('Sync failed:', err.message));
+    return state;
   }
 
   function resetAll() {
@@ -490,7 +507,8 @@ const Storage = (() => {
 
     getExpenses, addExpense, deleteExpense,
 
-    exportData, importData, clearAll, resetAll,
+    exportData, importData,
+    clearAll, resetMaster, resetAll,
 
     getState: () => state,
     getLastSyncTime: () => lastSyncTime,
